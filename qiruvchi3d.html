@@ -82,7 +82,13 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .bossbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(60%,420px);height:14px;border:2px solid var(--ink);
   background:rgba(163,177,138,.8);display:none;pointer-events:none}
 .bossbar.show{display:block}
-.bossbar i{display:block;height:100%;background:var(--red);width:100%}
+.bossbar i{display:block;height:100%;background:var(--red);width:100%;transition:background .3s}
+.bossbar.shielded{border-color:#5ef2ff;box-shadow:0 0 0 2px #5ef2ff}
+.bossbar b{position:absolute;left:0;right:0;top:16px;text-align:center;font:700 11px Silkscreen,monospace;color:#fff;text-shadow:0 1px 0 #000}
+.lock{position:absolute;top:40px;left:50%;transform:translateX(-50%);font:700 15px Silkscreen,"Courier New",monospace;color:#fff;
+  background:#c0231a;padding:5px 10px;border-radius:4px;display:none;pointer-events:none;white-space:nowrap}
+.lock.show{display:block;animation:blink .3s steps(2) infinite}
+@keyframes blink{50%{opacity:.35}}
 .pad{display:none;align-items:center;justify-content:space-between;gap:12px;height:104px;padding:0 6px}
 @media (pointer:coarse){.pad{display:flex}}
 .pad p{font-size:14px;line-height:1.35;max-width:22ch}
@@ -115,13 +121,15 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
       <div>Jon<b class="hp" id="hHp"></b></div>
     </div>
     <div class="stage" id="stage">
-      <div class="bossbar" id="bossBar"><i id="bossFill"></i></div>
+      <div class="bossbar" id="bossBar"><i id="bossFill"></i><b id="bossTxt"></b></div>
+      <div class="lock" id="lockEl">⚠ NISHONGA OLINMOQDA</div>
       <div class="banner" id="banner"></div>
       <div class="fade" id="fade"></div>
 
       <div class="overlay show" id="ovMenu">
         <div class="big">QIRUVCHI<small>3D</small></div>
         <p>Dengiz, cho'l, qorli tog'lar va shahar ustida jang. Kunduz, tun, yomg'ir va bo'ron. Kemalar, suv osti kemalari, tanklar, dronlar va sizni quvadigan raketalar.</p>
+        <p>Yangi xavflar: zenit-raketa majmualari (radar nishonga olsa, tez raketalar uchadi, avval radarni yo'q qiling), ballistik raketalar (qizil doiradan chiqib keting), vertolyotlar va hujumchi dronlar. Boss'lar endi uch bosqichli.</p>
         <div class="planes" id="planes"></div>
         <p class="hint-key">Strelkalar yoki WASD bilan uching, Probel bilan oting, R raketa, X bomba. Sichqoncha bilan tortib boshqarish ham mumkin.</p>
         <p class="hint-touch">Barmoqni surib uching, samolyot o'zi otadi. Pastda raketa va bomba tugmalari.</p>
@@ -206,7 +214,10 @@ const M = {
   tankBody: std(0x6b5a3a), tankDark: std(0x3a3226), tankTrack: std(0x2a2a2a),
   drone: std(0x2f3237, { metalness: 0.4, roughness: 0.4 }), rotor: new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.45 }),
   led: basic(0xff2a2a), missile: std(0xf2f2f2), missileNose: basic(0xff3030), bunker: std(0x8a8a7a),
-  pNose: basic(0x6fe3ff), smokeLight: std(0xdddddd),
+  pNose: basic(0x6fe3ff), smokeLight: std(0xdddddd), samNose: basic(0xffa020),
+  dish: std(0xd8dde2, { metalness: 0.3 }), tube: std(0x7d8a70), wheel: std(0x1e1e1e),
+  heli: std(0x4a5a3a), heliDark: std(0x2c3526), adrone: std(0x5a1f1f, { metalness: 0.3, roughness: 0.4 }), wdrone: std(0x8a8f96),
+  sgen: new THREE.MeshBasicMaterial({ color: 0x5ef2ff }), bubble: new THREE.MeshBasicMaterial({ color: 0x5ef2ff, transparent: true, opacity: 0.18, depthWrite: false }),
   deckDark: std(0x4a5058), deckLine: basic(0xf2f2f2), deckYel: basic(0xffd24a),
   sub: std(0x2b3036, { roughness: 0.4 }),
   dune: std(0xc9a764), cactus: std(0x4f8a3a), rockDark: std(0x6b6f72), snowCap: std(0xffffff), pine: std(0x2f5a3a),
@@ -255,6 +266,7 @@ function makeBomber() {
 }
 function makeBoss() {
   const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  const bub = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), M.bubble); bub.scale.set(8.5, 2.6, 5); bub.visible = false; g.add(bub); g.userData.bubble = bub;
   // stepped flying wing
   box(inner, M.xWing, 14, 0.5, 2.2, 0, 0, 0.6);
   box(inner, M.xWing, 10, 0.6, 1.4, 0, 0, -1.0);
@@ -314,11 +326,11 @@ function makeTank() {
   return g;
 }
 const rotorGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.03, 14);
-function makeDrone() {
+function makeDrone(mat = M.drone) {
   const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
-  box(inner, M.drone, 0.55, 0.28, 0.55, 0, 0, 0);
-  const a1 = box(inner, M.drone, 2.0, 0.1, 0.14, 0, 0, 0); a1.rotation.y = Math.PI / 4;
-  const a2 = box(inner, M.drone, 2.0, 0.1, 0.14, 0, 0, 0); a2.rotation.y = -Math.PI / 4;
+  box(inner, mat, 0.55, 0.28, 0.55, 0, 0, 0);
+  const a1 = box(inner, mat, 2.0, 0.1, 0.14, 0, 0, 0); a1.rotation.y = Math.PI / 4;
+  const a2 = box(inner, mat, 2.0, 0.1, 0.14, 0, 0, 0); a2.rotation.y = -Math.PI / 4;
   box(inner, M.led, 0.16, 0.12, 0.16, 0, -0.18, 0.2, false);
   const rotors = [];
   for (const [x, z] of [[0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]]) {
@@ -326,6 +338,88 @@ function makeDrone() {
     const r = new THREE.Mesh(rotorGeo, M.rotor); r.position.set(x, 0.22, z); inner.add(r); rotors.push(r);
   }
   g.userData.inner = inner; g.userData.rotors = rotors;
+  return g;
+}
+function truckBase(parent, len = 3.2) {
+  box(parent, M.tankTrack, 1.5, 0.35, len, 0, 0.45, 0);
+  box(parent, M.tankBody, 1.5, 0.9, 1.0, 0, 0.95, len / 2 - 0.4);
+  box(parent, M.glass, 1.3, 0.3, 0.05, 0, 1.15, len / 2 + 0.11, false);
+  for (const z of [-len / 2 + 0.5, 0, len / 2 - 0.5]) for (const x of [-0.8, 0.8]) box(parent, M.wheel, 0.25, 0.6, 0.6, x, 0.3, z);
+}
+function makeRadar() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  truckBase(inner); box(inner, M.tankBody, 1.4, 0.6, 1.8, 0, 0.95, -0.5);
+  const dish = new THREE.Group(); dish.position.set(0, 2.2, 0.5);
+  box(dish, M.tube, 0.15, 0.9, 0.15, 0, -0.45, 0);
+  const d = box(dish, M.dish, 2.2, 1.2, 0.12, 0, 0.3, 0); d.rotation.x = -0.35;
+  box(dish, M.led, 0.2, 0.2, 0.2, 0, 1.0, 0, false);
+  g.add(dish);
+  g.userData.inner = inner; g.userData.turrets = []; g.userData.dish = dish;
+  return g;
+}
+function makeSAM() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  truckBase(inner, 3.6);
+  const t = new THREE.Group(); t.position.set(0, 1.25, 0.4);
+  const rack = new THREE.Group(); rack.rotation.x = -0.65; t.add(rack);
+  for (const [x, y] of [[-0.35, 0], [0.35, 0], [-0.35, 0.55], [0.35, 0.55]]) { box(rack, M.tube, 0.5, 0.5, 2.6, x, y, 0.4); box(rack, M.samNose, 0.3, 0.3, 0.05, x, y, 1.72, false); }
+  g.add(t);
+  g.userData.inner = inner; g.userData.turrets = [t];
+  return g;
+}
+function makeTEL() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  truckBase(inner, 4.6);
+  const pivot = new THREE.Group(); pivot.position.set(0, 1.2, -2.0);
+  const bm = new THREE.Group(); pivot.add(bm);
+  box(bm, M.missile, 0.55, 0.55, 3.6, 0, 0, 1.9);
+  box(bm, M.missileNose, 0.4, 0.4, 0.6, 0, 0, 3.9, false);
+  box(bm, M.hullDark, 1.2, 0.08, 0.5, 0, 0, 0.3); box(bm, M.hullDark, 0.08, 1.2, 0.5, 0, 0, 0.3);
+  g.add(pivot);
+  g.userData.inner = inner; g.userData.turrets = []; g.userData.pivot = pivot; g.userData.bm = bm;
+  return g;
+}
+function makeHeli() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  box(inner, M.heli, 1.1, 1.0, 2.6, 0, 0, -0.2);
+  box(inner, M.glass, 0.9, 0.55, 0.9, 0, 0.1, -1.55);
+  box(inner, M.heli, 0.35, 0.35, 2.8, 0, 0.2, 2.4);
+  box(inner, M.heli, 0.1, 0.9, 0.5, 0, 0.6, 3.7);
+  box(inner, M.heliDark, 2.6, 0.12, 0.5, 0, -0.2, -0.1);
+  for (const x of [-1.2, 1.2]) box(inner, M.heliDark, 0.3, 0.3, 0.9, x, -0.35, -0.1);
+  for (const x of [-0.5, 0.5]) box(inner, M.heliDark, 0.08, 0.08, 2.2, x, -0.7, -0.2);
+  const rotor = new THREE.Group(); rotor.position.set(0, 0.75, -0.2);
+  box(rotor, M.heliDark, 5.2, 0.05, 0.28, 0, 0, 0, false); box(rotor, M.heliDark, 0.28, 0.05, 5.2, 0, 0, 0, false);
+  inner.add(rotor);
+  const tail = new THREE.Group(); tail.position.set(0.25, 0.7, 3.7);
+  box(tail, M.heliDark, 0.04, 1.2, 0.18, 0, 0, 0, false);
+  inner.add(tail);
+  g.userData.inner = inner; g.userData.rotor = rotor; g.userData.tail = tail;
+  return g;
+}
+function makeADrone() {
+  const g = makeDrone(M.adrone); const inner = g.userData.inner;
+  inner.scale.setScalar(1.45);
+  box(inner, M.hullDark, 0.14, 0.14, 0.7, 0, -0.3, 0.3);
+  box(inner, M.led, 0.3, 0.1, 0.3, 0, 0.18, 0, false);
+  return g;
+}
+function makeWDrone() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  box(inner, M.wdrone, 0.45, 0.35, 2.2, 0, 0, 0);
+  const w1 = box(inner, M.wdrone, 2.0, 0.08, 1.4, 0.8, 0, 0.3); w1.rotation.y = 0.5;
+  const w2 = box(inner, M.wdrone, 2.0, 0.08, 1.4, -0.8, 0, 0.3); w2.rotation.y = -0.5;
+  box(inner, M.wdrone, 0.08, 0.5, 0.5, 1.5, 0.2, 0.9); box(inner, M.wdrone, 0.08, 0.5, 0.5, -1.5, 0.2, 0.9);
+  box(inner, M.glow, 0.3, 0.3, 0.15, 0, 0, 1.15, false);
+  box(inner, M.missileNose, 0.3, 0.25, 0.3, 0, 0, -1.2, false);
+  g.userData.inner = inner;
+  return g;
+}
+function makeSGen() {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.8), M.sgen); inner.add(core);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 6, 24), M.hullDark); ring.rotation.x = Math.PI / 2; inner.add(ring);
+  g.userData.inner = inner;
   return g;
 }
 function makeMissile(nose = M.missileNose) {
@@ -340,6 +434,7 @@ function makeMissile(nose = M.missileNose) {
 }
 function makeCarrier() {
   const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  const bub = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), M.bubble); bub.scale.set(5.5, 4, 13.5); bub.position.y = 1; bub.visible = false; g.add(bub); g.userData.bubble = bub;
   const L = 22, W = 5.6;
   box(inner, M.hull, W, 2.0, L, 0, 0.2, 0);
   box(inner, M.hull, W * 0.55, 2.0, 2.5, 0, 0.2, -L / 2 - 1.1);
@@ -605,7 +700,7 @@ try { hi = parseInt(localStorage.getItem('qiruvchi3d-hi') || '0', 10) || 0; } ca
 let enemies = [], pShots = [], eShots = [], pickups = [], parts = [], flashes = [], rings = [], missiles = [], lands = [], sinking = [];
 const SCROLL = 11;
 let hpMax = 5; const BOMB_MAX = 5;
-let rockets = 0, pMis = [];
+let rockets = 0, pMis = [], strikes = [], lasers = [], risers = [], lock = 0, lockCd = 0, lockBeep = 0, seen = {};
 const PLANES = {
   lochin: { name: 'Lochin', desc: 'Tez, lekin zaif', speed: 21, hp: 3, fire: 95, dmg: 1, rad: 0.7, salvo: 2, ammo: 3, ammoMax: 6, scale: 0.88,
     mats: [std(0x7a8fa3), std(0x5c6f82), std(0xff5a3c)], stats: [3, 1, 2, 1] },
@@ -656,10 +751,46 @@ function enemyFire(x, z, ang, sp, y0 = Y) {
   m.position.set(x, y0, z); scene.add(m); eShots.push(s);
 }
 function fireMissile(x, z, ang, o = {}) {
-  const ms = Object.assign({ x, z, ang, sp: 10 + stageN * 0.6, turn: 1.5 + stageN * 0.08, life: 4800, trailT: 0, mesh: makeMissile() }, o);
+  const ms = Object.assign({ x, z, ang, sp: 10 + stageN * 0.6, turn: 1.5 + stageN * 0.08, life: 4800, trailT: 0 }, o);
+  if (!ms.mesh) ms.mesh = makeMissile();
   ms.mesh.position.set(x, Y, z); ms.mesh.rotation.y = ang;
   missiles.push(ms);
   tone(500, 0.18, 'sawtooth', 0.03, 700);
+}
+const strikeRingGeo = new THREE.RingGeometry(2.7, 3.3, 40), strikeDiscGeo = new THREE.CircleGeometry(3.3, 40);
+function addStrike(x, z, delay = 2500) {
+  x = Math.max(-BX, Math.min(BX, x)); z = Math.max(BZ0, Math.min(BZ1, z));
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
+  const discMat = new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(strikeRingGeo, ringMat), disc = new THREE.Mesh(strikeDiscGeo, discMat);
+  ring.rotation.x = disc.rotation.x = -Math.PI / 2; ring.position.set(x, Y - 0.7, z); disc.position.set(x, Y - 0.72, z); disc.scale.setScalar(0.01);
+  const mis = makeMissile(); mis.scale.setScalar(2.2); mis.rotation.x = Math.PI / 2; mis.visible = false;
+  scene.add(ring); scene.add(disc);
+  strikes.push({ x, z, t: delay, max: delay, ring, disc, mis, beep: 0 });
+  if (!seen.strike) { seen.strike = true; showBanner('Ballistik raketa! Doiradan chiqing!', true); }
+}
+function addLaser(x, z0) {
+  const len = 30, mat = new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0.25, depthWrite: false });
+  const m = new THREE.Mesh(BOX, mat); m.scale.set(1.8, 0.3, len); m.position.set(x, Y, z0 + len / 2); scene.add(m);
+  lasers.push({ x, z0, warn: 1000, fire: 900, m, mat });
+  tone(900, 0.8, 'sawtooth', 0.025, -500);
+}
+function launchRiser(x, z, y0) {
+  const m = makeMissile(); m.scale.setScalar(2); m.rotation.x = -Math.PI / 2; m.position.set(x, y0, z);
+  risers.push({ m, t: 0 });
+  flash(x, z, 2.2, 400, 0xfff0c0, y0);
+  boom(0.9, 0.25, 300);
+}
+function spawnShieldGens(b, n) {
+  for (let i = 0; i < n; i++) addEnemy('sgen', b.x, b.z, { owner: b, ang: i / n * Math.PI * 2 });
+  b.shielded = true;
+}
+function enterPhase(b) {
+  shake = 0.8; boom(0.8, 0.25, 400);
+  showBanner(b.phase === 2 ? "Boss g'azablandi!" : "Boss oxirgi kuchida!", true);
+  spawnShieldGens(b, b.phase === 2 ? 2 : 3);
+  for (let i = 0; i < 3; i++) setTimeout(() => tone(220 - i * 40, 0.25, 'sawtooth', 0.04), i * 180);
+  updateBossBar();
 }
 function firePlayerMissiles() {
   if (state !== 'play' || !player.alive) return;
@@ -697,10 +828,17 @@ function addEnemy(type, x, z, o = {}) {
   else if (type === 'ship') { e.mesh = makeShip(false); e.ground = true; e.y = 0; e.hp = 5 + stageN; e.vz = SCROLL + 1.5; e.score = 300; }
   else if (type === 'destroyer') { e.mesh = makeShip(true); e.ground = true; e.y = 0; e.hp = 30 + stageN * 8; e.vz = SCROLL + 1; e.score = 1500; e.fireT = 1400; e.misT = 2500; }
   else if (type === 'tank') { e.mesh = makeTank(); e.ground = true; e.y = 1.2; e.hp = 3 + stageN; e.score = 250; e.r = 1.5; e.fireT = rnd(1200, 2600); }
-  else if (type === 'drone') { e.mesh = makeDrone(); e.hp = 1; e.vz = 9 + stageN * 0.5; e.r = 1.1; e.score = 80; }
-  else if (type === 'carrier') { e.mesh = makeCarrier(); e.ground = true; e.isBoss = true; e.y = 0; e.hp = 170 + stageN * 45; e.vz = 7; e.score = 6000 * stageN; e.launchT = 1500; e.misT = 3000; e.fireT = 900; }
+  else if (type === 'drone') { e.mesh = makeDrone(); e.hp = stageN >= 3 ? 2 : 1; e.vz = 10 + stageN * 0.8; e.r = 1.1; e.score = 80; }
+  else if (type === 'adrone') { e.mesh = makeADrone(); e.hp = 3 + (stageN >= 3 ? 2 : 0); e.vz = 12; e.r = 1.5; e.score = 220; e.fireT = rnd(1200, 2000); e.burst = 0; e.burstT = 0; }
+  else if (type === 'wdrone') { e.mesh = makeWDrone(); e.hp = stageN >= 4 ? 2 : 1; e.vz = 18 + stageN; e.r = 1.3; e.score = 100; }
+  else if (type === 'heli') { e.mesh = makeHeli(); e.hp = 9 + stageN * 2; e.r = 2.0; e.score = 450; e.st = 'in'; e.lifeT = 11000; e.tx = x; e.txT = 0; e.burst = 0; e.burstT = 0; e.fireT = 1500; }
+  else if (type === 'sgen') { e.mesh = makeSGen(); e.hp = 6 + stageN * 2; e.r = 1.4; e.score = 300; }
+  else if (type === 'radar') { e.mesh = makeRadar(); e.ground = true; e.y = 1.2; e.hp = 5 + stageN; e.r = 1.7; e.score = 400; }
+  else if (type === 'sam') { e.mesh = makeSAM(); e.ground = true; e.y = 1.2; e.hp = 6 + stageN; e.r = 1.8; e.score = 500; }
+  else if (type === 'tel') { e.mesh = makeTEL(); e.ground = true; e.y = 1.2; e.hp = 7 + stageN; e.r = 2.1; e.score = 700; e.st = 'idle'; e.stT = 0; }
+  else if (type === 'carrier') { e.mesh = makeCarrier(); e.ground = true; e.isBoss = true; e.y = 0; e.hp = 250 + stageN * 70; e.vz = 7; e.score = 6000 * stageN; e.phase = 1; e.phaseT = 0; e.launchT = 1500; e.misT = 3000; e.fireT = 900; }
   else if (type === 'sub') { e.mesh = makeSub(); e.ground = true; e.y = -2.2; e.hp = 6 + stageN * 2; e.score = 600; e.ph = 'hidden'; e.phT = rnd(500, 1400); e.submerged = true; }
-  else if (type === 'boss') { e.isBoss = true; e.mesh = makeBoss(); e.hp = 110 + stageN * 45; e.vz = 7; e.score = 5000 * stageN; e.pat = 0; e.patT = 2600; e.burst = 0; e.fireT = 99999; }
+  else if (type === 'boss') { e.isBoss = true; e.mesh = makeBoss(); e.hp = 170 + stageN * 65; e.vz = 7; e.score = 5000 * stageN; e.phase = 1; e.escT = 6000; e.strikeT = 4000; e.pat = 0; e.patT = 2600; e.burst = 0; e.fireT = 99999; }
   e.maxHp = e.hp;
   e.mesh.userData.inner.rotation.y = Math.PI;
   e.mesh.position.set(x, e.ground ? e.y : Y, z);
@@ -720,6 +858,7 @@ function hits(e, x, z, pad = 0) {
 }
 function damageEnemy(e, d) {
   if (e.dead) return;
+  if (e.shielded) { e.pulse = 0.4; if (time - (e.tinkT || 0) > 120) { tone(1800, 0.03, 'triangle', 0.02); e.tinkT = time; } return; }
   e.hp -= d; e.pulse = 1;
   if (e.isBoss) updateBossBar();
   if (e.hp <= 0) killEnemy(e);
@@ -743,13 +882,13 @@ function killEnemy(e) {
     dropPickup(e.x - 2, Math.max(e.z, -18), 'P'); dropPickup(e.x + 2, Math.max(e.z, -18), 'R');
     return;
   }
-  const size = e.type === 'bomber' ? 1.8 : e.type === 'sub' ? 1.5 : e.type === 'destroyer' ? 2.2 : e.type === 'drone' ? 0.6 : e.type === 'ship' ? 1.3 : 1;
+  const size = e.type === 'heli' ? 1.4 : e.type === 'tel' ? 1.8 : e.type === 'bomber' ? 1.8 : e.type === 'sub' ? 1.5 : e.type === 'destroyer' ? 2.2 : e.type === 'drone' ? 0.6 : e.type === 'ship' ? 1.3 : 1;
   explode(e.x, e.z, size, e.ground ? e.y + 1 : Y);
   if (e.type === 'ship' || e.type === 'destroyer' || e.type === 'sub') {
     scene.add(e.mesh); sinking.push({ mesh: e.mesh, t: 0, vz: SCROLL });
     if (e.type === 'destroyer') for (let i = 1; i < 5; i++) setTimeout(() => explode(e.x + rnd(-1, 1), e.z + rnd(-4, 4), 1, 1.5), i * 180);
   }
-  const chance = { bomber: 1, destroyer: 1, sub: 0.5, diver: 0.1, ship: 0.18, tank: 0.14, drone: 0.05 }[e.type] ?? 0.08;
+  const chance = { tel: 0.45, sam: 0.35, radar: 0.3, heli: 0.4, adrone: 0.15, sgen: 0.5, wdrone: 0.04, bomber: 1, destroyer: 1, sub: 0.5, diver: 0.1, ship: 0.18, tank: 0.14, drone: 0.05 }[e.type] ?? 0.08;
   if (Math.random() < chance) dropPickup(e.x, e.z);
 }
 
@@ -762,6 +901,7 @@ function spawnWave() {
     return;
   }
   if (r0 < 0.52) { spawnDrones(); return; }
+  if (stageN >= 2 && r0 < 0.62 && !enemies.some(e => e.type === 'heli')) { const n = 1 + (stageN >= 4 ? 1 : 0); for (let i = 0; i < n; i++) addEnemy('heli', rnd(-8, 8), -55 - i * 6, { holdZ: rnd(-24, -16) }); return; }
   const r = Math.random();
   const bomberP = Math.min(0.1 + stageN * 0.04, 0.3);
   if (r < bomberP && !enemies.some(e => e.type === 'bomber')) {
@@ -800,8 +940,30 @@ function spawnLand() {
     t.land = land; t.ox = t.x - x; t.oz = t.z - z; t.dir = Math.random() < 0.5 ? -1 : 1;
     if (world.loc !== 'sea') t.y = 0.05;
   }
+  const put = (type) => {
+    const e = addEnemy(type, x + rnd(-w / 2 + 2, w / 2 - 2), z + rnd(-d / 2 + 2.5, d / 2 - 2.5));
+    e.land = land; e.ox = e.x - x; e.oz = e.z - z; if (world.loc !== 'sea') e.y = 0.05;
+    return e;
+  };
+  if (stageN >= 2 || Math.random() < 0.35) {
+    if (Math.random() < 0.6) { put('radar'); put('sam'); if (stageN >= 3) put('sam'); }
+  }
+  if (stageN >= 2 && Math.random() < 0.55) { put('tel'); if (stageN >= 4 && Math.random() < 0.5) put('tel'); }
 }
 function spawnDrones() {
+  const r = Math.random();
+  if (stageN >= 2 && r < 0.32) {
+    const n = 2 + Math.min(stageN, 3);
+    for (let i = 0; i < n; i++) addEnemy('adrone', rnd(-9, 9), -50 - i * 3, { holdZ: rnd(-26, -14), tx: rnd(-8, 8), lifeT: 12000, phase: rnd(0, 6) });
+    if (!seen.adrone) { seen.adrone = true; showBanner('Hujumchi dronlar!', true); }
+    return;
+  }
+  if (r < 0.62) {
+    const n = 5 + Math.min(stageN, 5), x0 = rnd(-7, 7);
+    for (let i = 0; i < n; i++) addEnemy('wdrone', x0 + (i % 2 ? 1 : -1) * ((i + 1) >> 1) * 1.7, -55 - ((i + 1) >> 1) * 2.4);
+    tone(300, 0.4, 'sawtooth', 0.02, 200);
+    return;
+  }
   const n = 5 + Math.min(stageN * 2, 8);
   const cx = rnd(-6, 6);
   for (let i = 0; i < n; i++) {
@@ -898,6 +1060,10 @@ function hurtPlayer() {
 function clearAll() {
   [...enemies, ...pShots, ...eShots, ...pickups, ...missiles, ...sinking, ...pMis].forEach(o => scene.remove(o.mesh));
   pMis = [];
+  strikes.forEach(st => { scene.remove(st.ring); scene.remove(st.disc); scene.remove(st.mis); }); strikes = [];
+  lasers.forEach(L => scene.remove(L.m)); lasers = [];
+  risers.forEach(r => scene.remove(r.m)); risers = [];
+  lock = 0; lockCd = 0; $('lockEl').classList.remove('show');
   lands.forEach(l => scene.remove(l.g));
   enemies = []; pShots = []; eShots = []; pickups = []; missiles = []; lands = []; sinking = []; boss = null;
   $('bossBar').classList.remove('show');
@@ -906,6 +1072,7 @@ function newGame() {
   ensureAudio();
   clearAll();
   hpMax = plane.hp; rockets = plane.ammo;
+  seen = {};
   score = 0; stageN = 1; hp = hpMax; bombs = 2; power = 1; shieldT = 0;
   applyStage(1); stageFading = false; $('fade').classList.remove('on');
   stageTime = 0; spawnT = 1800; bossPending = 0; nextStageT = 0; overT = 0;
@@ -939,7 +1106,13 @@ function updateHud() {
   let h = ''; for (let i = 0; i < hpMax; i++) h += '<i style="width:' + pw + 'px" class="' + (i < hp ? 'on' : '') + '"></i>';
   $('hHp').innerHTML = h;
 }
-function updateBossBar() { if (boss) $('bossFill').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%'; }
+function updateBossBar() {
+  if (!boss) return;
+  $('bossFill').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+  $('bossFill').style.background = boss.phase === 3 ? '#9b3cff' : boss.phase === 2 ? '#ff8a1f' : '';
+  $('bossBar').classList.toggle('shielded', !!boss.shielded);
+  $('bossTxt').textContent = boss.shielded ? 'QALQON: generatorlarni yo\'q qiling' : (boss.phase > 1 ? boss.phase + '-bosqich' : '');
+}
 function setPaused(p) {
   if (p && state === 'play') { state = 'pause'; $('ovPause').classList.add('show'); }
   else if (!p && state === 'pause') { state = 'play'; $('ovPause').classList.remove('show'); last = performance.now(); }
@@ -984,6 +1157,7 @@ function update(dt) {
     if (nextStageT <= 0) {
       stageN++; stageTime = 0; spawnT = 1800;
       eShots.forEach(b => scene.remove(b.mesh)); eShots = [];
+      strikes.forEach(st => { scene.remove(st.ring); scene.remove(st.disc); scene.remove(st.mis); }); strikes = []; lock = 0;
       lands.forEach(L => scene.remove(L.g)); lands = [];
       enemies.forEach(e => { if (e.ground) { e.dead = true; scene.remove(e.mesh); } });
       applyStage(stageN); showBanner(stageTitle(stageN)); updateHud();
@@ -1032,6 +1206,18 @@ function update(dt) {
       }
     } else if (e.type === 'carrier') {
       if (e.z < -30) e.z += e.vz * s; else e.x += (Math.sin(e.t * 0.25) * 5 - e.x) * Math.min(1, s * 0.5);
+      const fr = e.hp / e.maxHp;
+      if (e.phase === 1 && fr < 0.66) { e.phase = 2; enterPhase(e); }
+      else if (e.phase === 2 && fr < 0.33) { e.phase = 3; enterPhase(e); }
+      if (e.phase >= 2 && e.z > -40 && p.alive) {
+        e.phaseT -= dt;
+        if (e.phaseT <= 0) {
+          for (let i = 0; i < 5; i++) addEnemy('drone', e.x + rnd(-2, 2), e.z + 8 + i, { phase: rnd(0, 6) });
+          for (const ox of [-2.4, 2.4]) fireMissile(e.x + ox, e.z, aimAt(e.x + ox, e.z), { sp: 15 + stageN * 0.6, turn: 2.4 + stageN * 0.1, life: 3600, mesh: makeMissile(M.samNose) });
+          if (e.phase === 3) { addStrike(p.x, p.z, 2300); addStrike(p.x + rnd(-6, 6), p.z + rnd(-4, 4), 2800); }
+          e.phaseT = e.phase === 3 ? 4800 : 6500;
+        }
+      }
       e.launchT -= dt; e.misT -= dt;
       if (e.z > -65 && p.alive) {
         if (e.launchT <= 0 && enemies.filter(q => q.type === 'fighter' && !q.dead).length < 5) {
@@ -1065,6 +1251,55 @@ function update(dt) {
         if (e.phT <= 0) { e.ph = 'hidden'; e.phT = rnd(2200, 3600); }
       }
       e.submerged = e.y < -0.9;
+    } else if (e.type === 'radar' || e.type === 'sam' || e.type === 'tel') {
+      const L = e.land; e.x = L.x + e.ox; e.z = L.z + e.oz;
+      if (e.type === 'tel') {
+        const ud = e.mesh.userData;
+        if (e.st === 'idle' && e.z > -46 && e.z < -8 && p.alive) { e.st = 'erect'; e.stT = 1600; tone(110, 1.3, 'sawtooth', 0.03, 90); }
+        else if (e.st === 'erect') {
+          e.stT -= dt; ud.pivot.rotation.x = -(1 - Math.max(0, e.stT) / 1600) * Math.PI / 2;
+          if (e.stT <= 0) {
+            ud.bm.visible = false;
+            launchRiser(e.x, e.z - 2, e.y + 3);
+            const tx = p.x, tz = p.z;
+            setTimeout(() => { if (state === 'play') { addStrike(tx, tz, 2400); if (stageN >= 3) addStrike(tx + rnd(-5, 5), tz + rnd(-3, 3), 2900); } }, 700);
+            e.st = 'reload'; e.stT = Math.max(5000, 8000 - stageN * 400);
+          }
+        } else if (e.st === 'reload') {
+          e.stT -= dt; ud.pivot.rotation.x *= 0.97;
+          if (e.stT <= 0) { ud.bm.visible = true; ud.pivot.rotation.x = 0; e.st = 'idle'; }
+        }
+      }
+    } else if (e.type === 'heli') {
+      if (e.st === 'in') { e.z += 13 * s; if (e.z >= e.holdZ) e.st = 'hold'; }
+      else if (e.st === 'hold') { e.lifeT -= dt; if (e.lifeT <= 0) e.st = 'out'; }
+      else e.z += 10 * s;
+      e.txT -= dt; if (e.txT <= 0) { e.tx = Math.max(-10, Math.min(10, p.x + rnd(-5, 5))); e.txT = rnd(1500, 2500); }
+      e.x += (e.tx - e.x) * Math.min(1, s * 0.9);
+      if (e.burst > 0) {
+        e.burstT -= dt;
+        if (e.burstT <= 0) { const side = e.burst % 2 ? 1.2 : -1.2; enemyFire(e.x + side, e.z + 1.5, aimAt(e.x + side, e.z) + rnd(-0.06, 0.06), eSpeed() * 1.35); e.burst--; e.burstT = 110; tone(500, 0.04, 'square', 0.02, -200); }
+      } else if (e.fireT <= 0 && e.st === 'hold' && p.alive) { e.burst = 4 + Math.min(stageN, 4); e.fireT = Math.max(1500, 3000 - stageN * 180); }
+    } else if (e.type === 'adrone') {
+      if (e.lifeT > 0) {
+        e.lifeT -= dt;
+        if (e.z < e.holdZ) e.z += e.vz * s;
+        e.tx += ((p.x + Math.sin(e.t + e.phase) * 4) - e.tx) * Math.min(1, s * 0.7);
+        e.x += (e.tx - e.x) * Math.min(1, s * 1.2);
+        if (e.burst > 0) { e.burstT -= dt; if (e.burstT <= 0) { enemyFire(e.x, e.z + 1, aimAt(e.x, e.z), eSpeed() * 1.1); e.burst--; e.burstT = 130; } }
+        else if (e.fireT <= 0 && p.alive && e.z > -40) { e.burst = 3; e.fireT = Math.max(1300, 2300 - stageN * 120); tone(700, 0.05, 'square', 0.02); }
+      } else {
+        e.z += 15 * s;
+        if (p.alive) e.x += (p.x - e.x) * Math.min(1, s * 1.8);
+      }
+    } else if (e.type === 'wdrone') {
+      e.z += e.vz * s;
+      if (e.z > -34 && e.z < -2 && p.alive) e.vx += ((p.x - e.x) * 1.1 - e.vx) * Math.min(1, s * 1.2);
+      e.x += e.vx * s;
+    } else if (e.type === 'sgen') {
+      const b = e.owner;
+      if (!b || b.dead) { damageEnemy(e, 999); }
+      else { e.ang += s * 0.9; e.x = b.x + Math.cos(e.ang) * (b.type === 'carrier' ? 6 : 8.5); e.z = b.z + 3 + Math.sin(e.ang) * (b.type === 'carrier' ? 8 : 3.5); }
     } else if (e.type === 'tank') {
       const L = e.land;
       e.ox += e.dir * 1.2 * s;
@@ -1082,10 +1317,25 @@ function update(dt) {
     } else if (e.type === 'boss') {
       if (e.z < -22) e.z += e.vz * s;
       else {
-        e.x = Math.sin(e.t * 0.45) * 7;
+        const fr = e.hp / e.maxHp;
+        if (e.phase === 1 && fr < 0.66) { e.phase = 2; enterPhase(e); }
+        else if (e.phase === 2 && fr < 0.33) { e.phase = 3; enterPhase(e); }
+        e.x = Math.sin(e.t * (e.phase === 3 ? 0.7 : 0.45)) * 7;
         e.patT -= dt;
-        if (e.patT <= 0) { e.pat = (e.pat + 1) % 4; e.patT = 3200; e.burst = 0; e.fireT = 200; }
-        if (e.fireT <= 0 && p.alive) {
+        if (e.patT <= 0) { e.pat = (e.pat + 1) % (e.phase >= 2 ? 5 : 4); e.patT = e.phase === 3 ? 2600 : 3200; e.burst = 0; e.fireT = 200; }
+        if (e.phase >= 2) {
+          e.escT -= dt;
+          if (e.escT <= 0) { for (let i = 0; i < 4; i++) addEnemy('drone', e.x + (i - 1.5) * 2.5, e.z + 3, { phase: rnd(0, 6) }); e.escT = e.phase === 3 ? 6500 : 9000; }
+        }
+        if (e.phase === 3) {
+          e.strikeT -= dt;
+          if (e.strikeT <= 0 && p.alive) { addStrike(p.x, p.z, 2300); addStrike(p.x + rnd(-6, 6), p.z + rnd(-4, 4), 2700); e.strikeT = 5200; }
+        }
+        if (e.pat === 4 && e.fireT <= 0 && p.alive) {
+          addLaser(p.x, e.z + 3); if (e.phase === 3) { addLaser(p.x + (Math.random() < 0.5 ? -4.5 : 4.5), e.z + 3); }
+          e.fireT = 2400;
+        }
+        if (e.fireT <= 0 && p.alive && e.pat !== 4) {
           if (e.pat === 0) {
             for (let i = -5; i <= 5; i++) enemyFire(e.x, e.z + 3, i * 0.13 + Math.sin(e.t) * 0.1, eSpeed() * 0.75);
             e.fireT = 1100;
@@ -1101,6 +1351,7 @@ function update(dt) {
             e.fireT = 900;
           }
           tone(260, 0.07, 'square', 0.02, -80);
+          if (e.phase >= 2) e.fireT *= e.phase === 3 ? 0.65 : 0.8;
         }
       }
     }
@@ -1109,8 +1360,74 @@ function update(dt) {
     // collide with player
     if (!e.dead && !e.ground && p.alive && hits(e, p.x, p.z, 0.7)) {
       hurtPlayer();
-      if (e.type === 'fighter' || e.type === 'diver' || e.type === 'drone') damageEnemy(e, 99);
+      if (['fighter', 'diver', 'drone', 'wdrone', 'adrone'].includes(e.type)) damageEnemy(e, 99);
+      else if (e.type === 'heli' || e.type === 'sgen') damageEnemy(e, 5);
     }
+  }
+
+  // boss shield state
+  for (const b of enemies) if (b.isBoss) {
+    const was = !!b.shielded;
+    b.shielded = enemies.some(q => q.type === 'sgen' && !q.dead && q.owner === b);
+    if (was && !b.shielded) { showBanner('Qalqon buzildi!'); tone(1200, 0.2, 'square', 0.04, -800); }
+    if (was !== b.shielded) updateBossBar();
+  }
+  // ballistic strikes
+  for (const st of strikes) {
+    st.t -= dt; const k = 1 - Math.max(0, st.t) / st.max;
+    st.disc.scale.setScalar(Math.max(0.01, k));
+    st.ring.material.opacity = 0.55 + 0.4 * Math.abs(Math.sin(time * 0.012));
+    st.beep -= dt; if (st.beep <= 0) { tone(1000 + k * 800, 0.05, 'square', 0.025); st.beep = 500 - k * 380; }
+    if (st.t < 900) {
+      st.mis.visible = true;
+      st.mis.position.set(st.x, Y + (st.t / 900) * 40, st.z);
+      if (Math.random() < 0.6) { const q = new THREE.Mesh(debrisGeo, M.smokeLight); q.scale.setScalar(0.8); q.position.copy(st.mis.position).y += 2.5; scene.add(q); parts.push({ m: q, life: 500, max: 500, s0: 0.8, spin: 0.01, v: new THREE.Vector3(0, 2, 0) }); }
+    }
+    if (st.t <= 0) {
+      st.dead = true; scene.remove(st.ring); scene.remove(st.disc); scene.remove(st.mis);
+      st.ring.material.dispose(); st.disc.material.dispose();
+      explode(st.x, st.z, 2.4, Y); shake = Math.max(shake, 1);
+      if (p.alive && Math.hypot(p.x - st.x, p.z - st.z) < 3.3) hurtPlayer();
+    }
+  }
+  strikes = strikes.filter(st => !st.dead);
+  // boss lasers
+  for (const L of lasers) {
+    if (L.warn > 0) {
+      L.warn -= dt; L.mat.opacity = Math.floor(L.warn / 100) % 2 ? 0.12 : 0.35;
+      if (L.warn <= 0) { L.mat.color.setHex(0xffd0c0); L.mat.opacity = 0.95; L.m.scale.x = 1.3; boom(0.6, 0.12, 2500); shake = Math.max(shake, 0.3); }
+    } else {
+      L.fire -= dt; L.m.scale.x = 1.1 + Math.random() * 0.4;
+      if (p.alive && Math.abs(p.x - L.x) < 1.15 && p.z > L.z0) hurtPlayer();
+      if (L.fire <= 0) { L.dead = true; scene.remove(L.m); L.mat.dispose(); }
+    }
+  }
+  lasers = lasers.filter(L => !L.dead);
+  // rising ballistic missiles
+  for (const r of risers) {
+    r.t += s; r.m.position.y += 40 * s;
+    if (Math.random() < 0.7) { const q = new THREE.Mesh(debrisGeo, M.smokeLight); q.scale.setScalar(1); q.position.copy(r.m.position); q.position.y -= 2; scene.add(q); parts.push({ m: q, life: 700, max: 700, s0: 1, spin: 0.01, v: new THREE.Vector3(rnd(-0.5, 0.5), 1, rnd(-0.5, 0.5)) }); }
+    if (r.t > 1.2) { r.dead = true; scene.remove(r.m); }
+  }
+  risers = risers.filter(r => !r.dead);
+  // radar lock -> SAM launch
+  {
+    const radars = enemies.filter(e => e.type === 'radar' && !e.dead && e.z > -50 && e.z < 3);
+    const sams = enemies.filter(e => e.type === 'sam' && !e.dead && e.z > -50 && e.z < 4);
+    if (radars.length && sams.length && p.alive) {
+      if (!seen.sam) { seen.sam = true; showBanner('ZRK! Avval radarni yo\'q qiling', true); }
+      if (lockCd > 0) lockCd -= dt;
+      else {
+        lock += dt / Math.max(1100, 1900 - stageN * 90);
+        lockBeep -= dt; if (lockBeep <= 0) { tone(1500, 0.05, 'square', 0.03); lockBeep = 420 - lock * 340; }
+        if (lock >= 1) {
+          for (const sm of sams) for (let i = 0; i < 2; i++) setTimeout(() => { if (!sm.dead && state === 'play') fireMissile(sm.x, sm.z, aimAt(sm.x, sm.z), { sp: 15 + stageN * 0.7, turn: 2.4 + stageN * 0.12, life: 3600, mesh: makeMissile(M.samNose) }); }, i * 250);
+          lock = 0; lockCd = Math.max(2600, 4600 - stageN * 220);
+          tone(1800, 0.4, 'square', 0.04);
+        }
+      }
+    } else lock = Math.max(0, lock - dt / 700);
+    $('lockEl').classList.toggle('show', lock > 0.05 && state === 'play');
   }
 
   // lands scroll with the sea
@@ -1296,10 +1613,15 @@ function frame(now) {
       e.mesh.position.set(e.x, e.y + (e.type === 'tank' ? 0 : Math.sin(time * 0.002 + e.z) * 0.08), e.z);
       if (e.type !== 'tank') e.mesh.rotation.z = Math.sin(time * 0.0015 + e.x) * 0.04;
       for (const t of e.mesh.userData.turrets) t.rotation.y = Math.atan2(player.x - e.x, player.z - (e.z + t.position.z));
+      if (e.mesh.userData.dish) e.mesh.userData.dish.rotation.y += dt * (lock > 0.05 ? 0.012 : 0.003);
+      if (e.mesh.userData.bubble) e.mesh.userData.bubble.visible = !!e.shielded;
     } else {
       e.mesh.position.set(e.x, Y + Math.sin(time * 0.003 + e.x) * 0.1, e.z);
       e.mesh.rotation.z = e.type === 'boss' ? Math.sin(e.t * 0.45) * -0.08 : e.roll;
-      if (e.type === 'drone') { e.mesh.rotation.z = Math.max(-0.5, Math.min(0.5, e.roll * 0.6)); e.mesh.rotation.x = 0.25; for (const r of e.mesh.userData.rotors) r.rotation.y += dt * 0.08; }
+      if (e.type === 'drone' || e.type === 'adrone') { e.mesh.rotation.z = Math.max(-0.5, Math.min(0.5, e.roll * 0.6)); e.mesh.rotation.x = 0.25; for (const r of e.mesh.userData.rotors) r.rotation.y += dt * 0.08; }
+      if (e.type === 'heli') { e.mesh.userData.rotor.rotation.y += dt * 0.045; e.mesh.userData.tail.rotation.x += dt * 0.06; e.mesh.rotation.x = 0.12; e.mesh.rotation.z = Math.max(-0.35, Math.min(0.35, e.roll * 0.5)); }
+      if (e.type === 'sgen') { e.mesh.userData.inner.rotation.y += dt * 0.004; e.mesh.userData.inner.rotation.x = Math.sin(time * 0.003) * 0.4; }
+      if (e.mesh.userData.bubble) e.mesh.userData.bubble.visible = !!e.shielded;
     }
     e.pulse = Math.max(0, e.pulse - dt * 0.006);
     e.mesh.userData.inner.scale.setScalar(1 + e.pulse * (e.isBoss ? 0.03 : 0.12));
