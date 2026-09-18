@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brick Game 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Rubik:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--plastic:#E9B824;--plastic-hi:#FAD865;--plastic-lo:#B0850C;--bezel:#262922;--lcd:#A3B18A;--ink:#1E2A17;--red:#D4412F;--red-lo:#8E2317;--label:#4A3500}
+@media (prefers-color-scheme:dark){:root{--plastic:#2A2F3B;--plastic-hi:#3A4150;--plastic-lo:#161922;--label:#E9B824}}
+*{box-sizing:border-box;margin:0}
+body{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--plastic);
+  background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.5px);background-size:6px 6px;
+  font-family:Rubik,system-ui,sans-serif;color:var(--label)}
+.console{width:min(440px,100%)}
+h1{font-family:Silkscreen,monospace;font-size:34px;text-align:center;margin-bottom:14px;
+  text-shadow:0 1px 0 var(--plastic-hi),0 -1px 0 var(--plastic-lo)}
+.screen{background:var(--bezel);border-radius:14px 14px 44px 14px;padding:12px;box-shadow:0 4px 0 var(--plastic-lo)}
+.lcd{background:var(--lcd);color:var(--ink);border-radius:4px 4px 4px 30px;padding:22px 18px 30px;display:grid;gap:12px}
+a{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--ink);padding:14px;border:3px solid var(--ink);border-radius:6px}
+a:hover,a:focus-visible{background:var(--ink);color:var(--lcd);outline:none}
+a b{font-family:Silkscreen,monospace;font-size:22px;display:block}
+a span{font-size:14px}
+svg{width:42px;height:42px;flex:none}
+p{text-align:center;margin-top:16px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="console">
+  <h1>BRICK GAME 3D</h1>
+  <div class="screen"><div class="lcd">
+    <a href="tank3d.html">
+      <svg viewBox="0 0 3 3"><path d="M1 0h1v1H1zM0 1h3v1H0zM0 2h1v1H0zM2 2h1v1H2z" fill="currentColor"/></svg>
+      <div><b>TANK 3D</b><span>Dushman tanklarini yo'q qiling</span></div>
+    </a>
+    <a href="qiruvchi3d.html">
+      <svg viewBox="0 0 5 5"><path d="M2 0h1v1H2zM2 1h1v1H2zM0 2h5v1H0zM2 3h1v1H2zM1 4h3v1H1z" fill="currentColor"/></svg>
+      <div><b>QIRUVCHI 3D</b><span>Dengiz ustida havo jangi</span></div>
+    </a>
+  </div></div>
+  <p>O'yinni tanlang</p>
+</div>
+</body>
+</html>

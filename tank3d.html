@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Tank 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Rubik:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --plastic:#E9B824; --plastic-hi:#FAD865; --plastic-lo:#B0850C;
+  --bezel:#262922; --lcd:#A3B18A; --ink:#1E2A17;
+  --red:#D4412F; --red-lo:#8E2317; --label:#4A3500; --key:#2B2E27;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --plastic:#2A2F3B; --plastic-hi:#3A4150; --plastic-lo:#161922; --label:#E9B824; --key:#10131A; }
+}
+:root[data-theme="dark"]{ --plastic:#2A2F3B; --plastic-hi:#3A4150; --plastic-lo:#161922; --label:#E9B824; --key:#10131A; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--plastic);
+  background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.5px);
+  background-size:6px 6px;
+  color:var(--label);
+  font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+  overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+}
+.app{height:100dvh;display:flex;flex-direction:column;gap:10px;max-width:1100px;margin:0 auto;
+  padding:max(10px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.logo{font-family:Silkscreen,"Courier New",monospace;font-weight:700;font-size:28px;line-height:1;
+  text-shadow:0 1px 0 var(--plastic-hi),0 -1px 0 var(--plastic-lo)}
+.logo small{font-size:15px;margin-left:4px;vertical-align:top}
+.tools{display:flex;gap:8px}
+.tool{height:38px;min-width:38px;padding:0 12px;border-radius:19px;border:0;cursor:pointer;
+  background:var(--key);color:#E8EBDD;font:600 13px Rubik,system-ui,sans-serif;
+  box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.tool:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.bezel{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--bezel);
+  border-radius:14px 14px 44px 14px;padding:10px;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.06),0 4px 0 var(--plastic-lo)}
+.hud{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--lcd);color:var(--ink);
+  font-family:Silkscreen,"Courier New",monospace;padding:6px 10px;border-radius:4px 4px 0 0;font-size:11px;line-height:1.1}
+.hud div:nth-child(2),.hud div:nth-child(3){text-align:center}
+.hud div:last-child{text-align:right}
+.hud b{display:block;font-size:18px;font-weight:700}
+.lives{display:inline-flex;gap:3px;height:18px;align-items:center}
+.lives svg{width:14px;height:14px}
+.stage{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:0 0 4px 32px;background:#1b1e19;touch-action:none}
+.stage canvas{display:block}
+.overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;text-align:center;padding:24px;background:rgba(163,177,138,.9);color:var(--ink)}
+.overlay.show{display:flex}
+.big{font-family:Silkscreen,"Courier New",monospace;font-weight:700;font-size:clamp(46px,13vw,92px);line-height:.85}
+.big small{font-size:.4em}
+.overlay p{max-width:34ch;font-size:15px;line-height:1.45}
+.hint-touch{display:none}
+@media (pointer:coarse){.hint-key{display:none}.hint-touch{display:block}}
+.btn{font:700 17px Rubik,system-ui,sans-serif;background:var(--red);color:#fff;border:0;border-radius:999px;
+  padding:14px 30px;box-shadow:0 4px 0 var(--red-lo);cursor:pointer}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--red-lo)}
+.score-line{font-family:Silkscreen,"Courier New",monospace;font-size:22px}
+.banner{position:absolute;left:50%;top:18%;transform:translateX(-50%);font-family:Silkscreen,"Courier New",monospace;
+  font-weight:700;font-size:clamp(26px,6vw,44px);color:var(--lcd);text-shadow:0 3px 0 #000;
+  pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap}
+.banner.show{opacity:1}
+.pad{display:none;align-items:center;justify-content:space-between;height:168px;padding:0 6px;touch-action:none}
+@media (pointer:coarse){.pad{display:flex}}
+.dpad{position:relative;width:156px;height:156px;touch-action:none}
+.dpad span{position:absolute;width:52px;height:52px;border-radius:12px;background:var(--key);
+  box-shadow:0 4px 0 rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
+.dpad span::after{content:"";border:9px solid transparent;border-bottom:12px solid #9aa08e;transform:translateY(-4px)}
+.dpad span.on{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.dpad span.on::after{border-bottom-color:#E8EBDD}
+.d0{left:52px;top:0}.d1{right:0;top:52px;rotate:90deg}.d2{left:52px;bottom:0;rotate:180deg}.d3{left:0;top:52px;rotate:-90deg}
+.fire{width:100px;height:100px;border-radius:50%;border:0;background:var(--red);box-shadow:0 7px 0 var(--red-lo);
+  color:#fff;font:800 15px Rubik,system-ui,sans-serif;touch-action:none}
+.fire.on{transform:translateY(5px);box-shadow:0 2px 0 var(--red-lo)}
+@media (prefers-reduced-motion:reduce){.banner{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="logo" href="index.html" style="color:inherit;text-decoration:none">TANK<small>3D</small></a>
+    <div class="tools">
+      <button class="tool" id="bCam" title="Kamerani almashtirish (C)">Kamera: umumiy</button>
+      <button class="tool" id="bSnd" title="Ovoz">Ovoz</button>
+      <button class="tool" id="bPause" title="Pauza (P)">❚❚</button>
+    </div>
+  </header>
+
+  <main class="bezel">
+    <div class="hud">
+      <div>Ochko<b id="hScore">0</b></div>
+      <div>Daraja<b id="hLevel">1</b></div>
+      <div>Dushman<b id="hEnemy">0</b></div>
+      <div>Jon<b class="lives" id="hLives"></b></div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="banner" id="banner"></div>
+
+      <div class="overlay show" id="ovMenu">
+        <div class="big">TANK<small>3D</small></div>
+        <p>Brick Game'dagi eski tank, endi uch o'lchamda. Dushman tanklarini yo'q qiling, g'isht devorlarni o'q bilan buzing.</p>
+        <p class="hint-key">Strelkalar yoki WASD bilan yuring, Probel bilan oting. C tugmasi kamerani, P pauzani almashtiradi.</p>
+        <p class="hint-touch">Chapdagi tugmalar bilan yuring, qizil tugma bilan oting.</p>
+        <button class="btn" id="bStart">Boshlash</button>
+        <p id="menuHi"></p>
+      </div>
+
+      <div class="overlay" id="ovPause">
+        <div class="big" style="font-size:clamp(36px,9vw,64px)">Pauza</div>
+        <button class="btn" id="bResume">Davom etish</button>
+      </div>
+
+      <div class="overlay" id="ovOver">
+        <div class="big" style="font-size:clamp(34px,9vw,64px)">O'yin tugadi</div>
+        <div class="score-line" id="overScore"></div>
+        <p id="overHi"></p>
+        <button class="btn" id="bRestart">Qayta o'ynash</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="pad">
+    <div class="dpad" id="dpad"><span class="d0"></span><span class="d1"></span><span class="d2"></span><span class="d3"></span></div>
+    <button class="fire" id="bFire">OT</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const W = 21, H = 21;
+const DX = [0, 1, 0, -1], DZ = [-1, 0, 1, 0];
+const OX = (W - 1) / 2, OZ = (H - 1) / 2;
+const wx = x => x - OX, wz = z => z - OZ;
+const $ = id => document.getElementById(id);
+
+/* ---------- Three.js setup ---------- */
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1e19);
+scene.fog = new THREE.Fog(0x1b1e19, 45, 110);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 250);
+
+scene.add(new THREE.HemisphereLight(0xf2f5e6, 0x3a4030, 0.78));
+const sun = new THREE.DirectionalLight(0xfff4d6, 0.85);
+sun.position.set(-9, 24, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 15, bottom: -15, near: 1, far: 70 });
+sun.shadow.bias = -0.0008;
+scene.add(sun);
+
+const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.62 }, o));
+const M = {
+  player: std(0x1e2a17), playerCap: std(0x34462a),
+  enemy: std(0x6e2a1e), enemyCap: std(0x94402c),
+  armor: std(0x2d3a4a), armorCap: std(0x4d6480),
+  brick: std(0x56653f), brickCap: std(0x6a7a4f),
+  steel: std(0x98a298, { metalness: 0.45, roughness: 0.35 }), steelCap: std(0xc2cac2, { metalness: 0.45, roughness: 0.3 }),
+  pBullet: new THREE.MeshBasicMaterial({ color: 0xfff1a0 }),
+  eBullet: new THREE.MeshBasicMaterial({ color: 0xff7a3d }),
+};
+
+// board + LCD
+const board = new THREE.Mesh(new THREE.BoxGeometry(W + 1.4, 0.7, H + 1.4), std(0x2c3028, { roughness: 0.9 }));
+board.position.y = -0.36; board.receiveShadow = true; scene.add(board);
+const lcd = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.3, H + 0.3), std(0xa3b18a, { roughness: 0.95 }));
+lcd.rotation.x = -Math.PI / 2; lcd.position.y = 0.002; lcd.receiveShadow = true; scene.add(lcd);
+const pix = new THREE.InstancedMesh(new THREE.BoxGeometry(0.84, 0.03, 0.84), std(0x95a37c, { roughness: 1 }), W * H);
+{
+  const m = new THREE.Matrix4(); let i = 0;
+  for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) { m.makeTranslation(wx(x), 0.015, wz(z)); pix.setMatrixAt(i++, m); }
+  pix.receiveShadow = true; scene.add(pix);
+}
+
+const cubeGeo = new THREE.BoxGeometry(0.86, 0.86, 0.86);
+const capGeo = new THREE.BoxGeometry(0.5, 0.08, 0.5);
+const hatchGeo = new THREE.BoxGeometry(0.34, 0.22, 0.34);
+const bulletGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+const debrisGeo = new THREE.BoxGeometry(0.28, 0.28, 0.28);
+const flashGeo = new THREE.SphereGeometry(0.6, 12, 10);
+
+function pixelCube(mat, cap) {
+  const g = new THREE.Group();
+  const c = new THREE.Mesh(cubeGeo, mat); c.position.y = 0.43; c.castShadow = c.receiveShadow = true; g.add(c);
+  const t = new THREE.Mesh(capGeo, cap); t.position.y = 0.9; t.castShadow = true; g.add(t);
+  return g;
+}
+const TANK_CELLS = [[0, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [1, 1]];
+function makeTankMesh(mat, cap) {
+  const g = new THREE.Group(), inner = new THREE.Group();
+  g.add(inner);
+  for (const [dx, dz] of TANK_CELLS) { const p = pixelCube(mat, cap); p.position.set(dx, 0, dz); inner.add(p); }
+  const h = new THREE.Mesh(hatchGeo, cap); h.position.set(0, 1.04, 0.1); h.castShadow = true; inner.add(h);
+  g.userData.inner = inner;
+  scene.add(g);
+  return g;
+}
+
+/* ---------- Audio ---------- */
+let ac = null, muted = false;
+function ensureAudio() {
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (ac && ac.state === 'suspended') ac.resume();
+}
+function tone(f, d, type = 'square', v = 0.04, slide = 0) {
+  if (muted || !ac) return;
+  const t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t0 + d);
+  g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+  o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + d + 0.02);
+}
+function boom(d = 0.45, v = 0.22) {
+  if (muted || !ac) return;
+  const n = Math.floor(ac.sampleRate * d), buf = ac.createBuffer(1, n, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = buf; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v;
+  s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
+}
+
+/* ---------- State ---------- */
+let state = 'menu';
+let score = 0, lives = 3, level = 1, levelKills = 0, target = 10, toSpawn = 0, spawnT = 0, spawnIdx = 0;
+let transT = 0, overT = 0, time = 0, shake = 0, camMode = 0;
+let hi = 0;
+try { hi = parseInt(localStorage.getItem('tank3d-hi') || '0', 10) || 0; } catch (e) {}
+const walls = new Uint8Array(W * H);
+let wallMesh = new Array(W * H).fill(null);
+let enemies = [], bullets = [], parts = [], flashes = [];
+let player = null;
+const SPAWNS = [[1, 1], [10, 1], [19, 1]];
+
+function newTank(x, z, dir, kind) {
+  const mats = { player: [M.player, M.playerCap], enemy: [M.enemy, M.enemyCap], armor: [M.armor, M.armorCap] }[kind];
+  const t = { x, z, dir, kind, team: kind === 'player' ? 0 : 1, rx: x, rz: z, ang: -dir * Math.PI / 2,
+    moveT: 0, fireT: 0, spawnT: 0, invT: 0, respawnT: 0, hp: kind === 'armor' ? 2 : 1, alive: true,
+    bulletsOut: 0, pulse: 0, moving: 0 };
+  t.mesh = makeTankMesh(mats[0], mats[1]);
+  syncTank(t, 0, true);
+  return t;
+}
+function syncTank(t, dt, snap) {
+  if (snap) { t.rx = t.x; t.rz = t.z; t.ang = -t.dir * Math.PI / 2; }
+  else {
+    const k = Math.min(1, dt * 0.018);
+    t.rx += (t.x - t.rx) * k; t.rz += (t.z - t.rz) * k;
+    let d = -t.dir * Math.PI / 2 - t.ang;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    t.ang += d * Math.min(1, dt * 0.022);
+  }
+  t.mesh.position.set(wx(t.rx), 0, wz(t.rz));
+  t.mesh.rotation.y = t.ang;
+  const inner = t.mesh.userData.inner;
+  t.pulse = Math.max(0, t.pulse - dt * 0.004);
+  inner.scale.setScalar(1 + t.pulse * 0.14);
+  inner.position.y = t.moving > 0 ? Math.abs(Math.sin(time * 0.03)) * 0.06 : 0;
+  if (t.spawnT > 0) {
+    const s = 1 - t.spawnT / 800;
+    t.mesh.scale.setScalar(0.3 + 0.7 * s);
+    t.mesh.visible = Math.floor(t.spawnT / 80) % 2 === 0;
+  } else {
+    t.mesh.scale.setScalar(1);
+    t.mesh.visible = t.alive && (t.invT <= 0 || Math.floor(t.invT / 90) % 2 === 0);
+  }
+}
+
+/* ---------- Walls ---------- */
+function setWall(x, z, type) {
+  const i = z * W + x;
+  if (walls[i]) return;
+  walls[i] = type;
+  const g = pixelCube(type === 2 ? M.steel : M.brick, type === 2 ? M.steelCap : M.brickCap);
+  g.position.set(wx(x), 0, wz(z));
+  scene.add(g); wallMesh[i] = g;
+}
+function removeWall(i) { walls[i] = 0; if (wallMesh[i]) scene.remove(wallMesh[i]); wallMesh[i] = null; }
+function buildWalls() {
+  for (let i = 0; i < W * H; i++) if (walls[i]) removeWall(i);
+  const reserved = (x, z) => z <= 3 || (z >= 16 && x >= 7 && x <= 13);
+  const n = Math.min(12 + level * 2, 24);
+  const steelP = level >= 2 ? Math.min(0.06 + level * 0.02, 0.22) : 0;
+  for (let k = 0; k < n; k++) {
+    const w = 1 + (Math.random() * 2 | 0), h = 1 + (Math.random() * 3 | 0);
+    const x0 = Math.random() * 10 | 0, z0 = 4 + (Math.random() * 12 | 0);
+    const type = Math.random() < steelP ? 2 : 1;
+    for (let dz = 0; dz < h; dz++) for (let dx = 0; dx < w; dx++) {
+      const x = x0 + dx, z = z0 + dz;
+      if (x >= W || z >= H || reserved(x, z)) continue;
+      setWall(x, z, type); setWall(W - 1 - x, z, type);
+    }
+  }
+  for (let x = 8; x <= 12; x++) setWall(x, 15, 1);
+}
+
+/* ---------- Movement ---------- */
+function liveTanks() { const a = enemies.filter(e => e.alive); if (player && player.alive) a.push(player); return a; }
+function areaFree(x, z, self) { return !liveTanks().some(o => o !== self && Math.abs(o.x - x) < 3 && Math.abs(o.z - z) < 3); }
+function canMove(t, nx, nz) {
+  if (nx < 1 || nx > W - 2 || nz < 1 || nz > H - 2) return false;
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (walls[(nz + dz) * W + nx + dx]) return false;
+  return areaFree(nx, nz, t);
+}
+function tryMove(t) {
+  const nx = t.x + DX[t.dir], nz = t.z + DZ[t.dir];
+  if (canMove(t, nx, nz)) { t.x = nx; t.z = nz; t.moving = 160; return true; }
+  return false;
+}
+
+/* ---------- Bullets ---------- */
+function fire(t) {
+  const b = { x: t.x + DX[t.dir], z: t.z + DZ[t.dir], dir: t.dir, team: t.team, owner: t,
+    step: t.team ? Math.max(48, 78 - level * 3) : 38, t: 0, dead: false };
+  b.px = b.x; b.pz = b.z;
+  b.mesh = new THREE.Mesh(bulletGeo, t.team ? M.eBullet : M.pBullet);
+  b.mesh.position.set(wx(b.x), 0.5, wz(b.z));
+  scene.add(b.mesh);
+  bullets.push(b); t.bulletsOut++;
+  t.pulse = Math.max(t.pulse, 0.4);
+  if (t.team === 0) tone(880, 0.07, 'square', 0.035, -300); else tone(420, 0.06, 'square', 0.02, -150);
+  advance(b);
+}
+function killBullet(b) { if (b.dead) return; b.dead = true; scene.remove(b.mesh); b.owner.bulletsOut = Math.max(0, b.owner.bulletsOut - 1); }
+function advance(b) {
+  const nx = b.x + DX[b.dir], nz = b.z + DZ[b.dir];
+  if (nx < 0 || nx >= W || nz < 0 || nz >= H) { spark(b.x, b.z); killBullet(b); return; }
+  const wi = nz * W + nx;
+  if (walls[wi]) {
+    if (walls[wi] === 1) { debris(nx, nz, M.brick, 6); removeWall(wi); tone(160, 0.08, 'square', 0.03); }
+    else { spark(nx, nz); tone(1400, 0.04, 'triangle', 0.03); }
+    killBullet(b); return;
+  }
+  for (const o of bullets) {
+    if (o === b || o.dead || o.team === b.team) continue;
+    if ((o.x === nx && o.z === nz) || (o.x === b.x && o.z === b.z)) { spark(nx, nz); killBullet(o); killBullet(b); return; }
+  }
+  for (const t of liveTanks()) {
+    if (Math.abs(t.x - nx) <= 1 && Math.abs(t.z - nz) <= 1) {
+      killBullet(b);
+      if (t.team !== b.team) hitTank(t, nx, nz);
+      return;
+    }
+  }
+  b.px = b.x; b.pz = b.z; b.x = nx; b.z = nz;
+}
+function hitTank(t, x, z) {
+  if (t.kind === 'player') {
+    if (t.invT > 0) { spark(x, z); return; }
+    t.alive = false; t.mesh.visible = false;
+    explode(t.rx, t.rz, M.player, 22, true);
+    lives--; updateHud();
+    if (lives <= 0) overT = 1600; else t.respawnT = 1400;
+    return;
+  }
+  if (t.spawnT > 0) { spark(x, z); return; }
+  t.hp--; t.pulse = 1;
+  if (t.hp > 0) { spark(x, z); tone(300, 0.1, 'square', 0.04, -100); return; }
+  t.alive = false; scene.remove(t.mesh);
+  explode(t.rx, t.rz, t.kind === 'armor' ? M.armor : M.enemy, 18, false);
+  levelKills++;
+  score += (t.kind === 'armor' ? 200 : 100) + level * 10;
+  if (levelKills >= target) { transT = 2000; showBanner('Daraja tugadi!'); score += 500 * level;
+    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.14, 'square', 0.04), i * 110)); }
+  updateHud();
+}
+
+/* ---------- Effects ---------- */
+function debris(x, z, mat, n, power = 1) {
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(debrisGeo, mat);
+    m.position.set(wx(x) + (Math.random() - 0.5) * 0.8, 0.4 + Math.random() * 0.6, wz(z) + (Math.random() - 0.5) * 0.8);
+    m.castShadow = true; scene.add(m);
+    const life = 700 + Math.random() * 600;
+    parts.push({ m, life, max: life, spin: (Math.random() - 0.5) * 0.02,
+      v: new THREE.Vector3((Math.random() - 0.5) * 7 * power, (3 + Math.random() * 5) * power, (Math.random() - 0.5) * 7 * power) });
+  }
+}
+function spark(x, z) { flash(x, z, 0.5, 220); }
+function flash(x, z, size, life) {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.85, depthWrite: false });
+  const m = new THREE.Mesh(flashGeo, mat);
+  m.position.set(wx(x), 0.6, wz(z)); m.scale.setScalar(size); scene.add(m);
+  flashes.push({ m, life, max: life, size });
+}
+function explode(x, z, mat, n, big) {
+  debris(x, z, mat, n, big ? 1.4 : 1.1);
+  flash(x, z, big ? 2.4 : 1.8, 420);
+  shake = Math.max(shake, big ? 0.7 : 0.35);
+  boom(big ? 0.7 : 0.4, big ? 0.3 : 0.2);
+}
+
+/* ---------- Levels & flow ---------- */
+function placePlayer() {
+  if (!player) player = newTank(10, 18, 0, 'player');
+  Object.assign(player, { x: 10, z: 18, dir: 0, alive: true, invT: 1800, fireT: 0, moveT: 0, bulletsOut: 0 });
+  syncTank(player, 0, true);
+}
+function clearField() {
+  bullets.forEach(killBullet); bullets = [];
+  enemies.forEach(e => scene.remove(e.mesh)); enemies = [];
+}
+function startLevel() {
+  clearField(); buildWalls(); placePlayer();
+  levelKills = 0; target = Math.min(8 + level * 2, 24); toSpawn = target; spawnT = 1400; transT = 0;
+  showBanner('Daraja ' + level);
+  updateHud();
+}
+function newGame() {
+  ensureAudio();
+  score = 0; lives = 3; level = 1; overT = 0;
+  hideOverlays(); state = 'play';
+  startLevel();
+}
+function gameOver() {
+  state = 'over';
+  let rec = false;
+  if (score > hi) { hi = score; rec = true; try { localStorage.setItem('tank3d-hi', String(hi)); } catch (e) {} }
+  $('overScore').textContent = 'Ochko: ' + score;
+  $('overHi').textContent = rec && score > 0 ? 'Yangi rekord!' : 'Rekord: ' + hi;
+  $('ovOver').classList.add('show');
+  [392, 330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.22, 'square', 0.04), i * 180));
+}
+let bannerTimer = 0;
+function showBanner(txt) {
+  const b = $('banner'); b.textContent = txt; b.classList.add('show');
+  clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.classList.remove('show'), 1600);
+}
+function hideOverlays() { document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show')); }
+const tankIcon = '<svg viewBox="0 0 3 3"><path d="M1 0h1v1H1zM0 1h3v1H0zM0 2h1v1H0zM2 2h1v1H2z" fill="currentColor"/></svg>';
+function updateHud() {
+  $('hScore').textContent = score;
+  $('hLevel').textContent = level;
+  $('hEnemy').textContent = Math.max(0, target - levelKills);
+  $('hLives').innerHTML = lives > 0 ? tankIcon.repeat(lives) : '0';
+}
+function setPaused(p) {
+  if (p && state === 'play') { state = 'pause'; $('ovPause').classList.add('show'); }
+  else if (!p && state === 'pause') { state = 'play'; $('ovPause').classList.remove('show'); last = performance.now(); }
+}
+
+/* ---------- Update ---------- */
+const PLAYER_MOVE = 115;
+const enemyMove = e => Math.max(150, 360 - level * 22) * (e.kind === 'armor' ? 1.25 : 1);
+const enemyFire = () => Math.max(650, 1900 - level * 130);
+
+function pickDir(e) {
+  if (player.alive && Math.random() < 0.45) {
+    const dx = player.x - e.x, dz = player.z - e.z;
+    return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0);
+  }
+  let d; do { d = Math.random() * 4 | 0; } while (d === e.dir);
+  return d;
+}
+
+function update(dt) {
+  const p = player;
+  // player
+  if (p.alive) {
+    if (p.invT > 0) p.invT -= dt;
+    p.fireT -= dt;
+    const d = activeDir();
+    if (d !== null) {
+      if (p.dir !== d) { p.dir = d; p.moveT = 90; }
+      else { p.moveT -= dt; if (p.moveT <= 0) { p.moveT = PLAYER_MOVE; if (tryMove(p)) tone(110, 0.02, 'square', 0.012); } }
+    } else p.moveT = 0;
+    if (fireHeld && p.fireT <= 0 && p.bulletsOut < 2) { fire(p); p.fireT = 260; }
+  } else if (lives > 0) {
+    p.respawnT -= dt;
+    if (p.respawnT <= 0 && areaFree(10, 18, p) && !walls[18 * W + 10]) {
+      Object.assign(p, { x: 10, z: 18, dir: 0, alive: true, invT: 2200, bulletsOut: 0 });
+      syncTank(p, 0, true);
+    }
+  }
+  if (overT > 0) { overT -= dt; if (overT <= 0) { gameOver(); return; } }
+
+  // spawns
+  const maxAlive = Math.min(3 + Math.floor((level - 1) / 2), 6);
+  if (transT <= 0 && toSpawn > 0 && enemies.filter(e => e.alive).length < maxAlive) {
+    spawnT -= dt;
+    if (spawnT <= 0) {
+      for (let k = 0; k < 3; k++) {
+        const [sx, sz] = SPAWNS[(spawnIdx + k) % 3];
+        if (areaFree(sx, sz, null)) {
+          const armorP = level >= 3 ? Math.min(0.15 + level * 0.04, 0.5) : 0;
+          const e = newTank(sx, sz, 2, Math.random() < armorP ? 'armor' : 'enemy');
+          e.spawnT = 800; e.moveT = 400; e.fireT = 900 + Math.random() * 800;
+          enemies.push(e); toSpawn--; spawnIdx = (spawnIdx + k + 1) % 3;
+          tone(660, 0.05, 'square', 0.02); setTimeout(() => tone(990, 0.05, 'square', 0.02), 70);
+          break;
+        }
+      }
+      spawnT = Math.max(700, 1600 - level * 70);
+    }
+  }
+
+  // enemies
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    if (e.spawnT > 0) { e.spawnT -= dt; continue; }
+    e.moveT -= dt; e.fireT -= dt;
+    let want = null;
+    if (p.alive) {
+      const dx = p.x - e.x, dz = p.z - e.z;
+      if (Math.abs(dx) <= 1) want = dz < 0 ? 0 : 2;
+      else if (Math.abs(dz) <= 1) want = dx > 0 ? 1 : 3;
+    }
+    if (e.fireT <= 0 && e.bulletsOut < 1 && ((want !== null && e.dir === want) || Math.random() < dt * 0.0006)) {
+      fire(e); e.fireT = enemyFire() * (0.6 + Math.random() * 0.8);
+    }
+    if (e.moveT <= 0) {
+      e.moveT = enemyMove(e);
+      if (want !== null && e.dir !== want && Math.random() < 0.55) { e.dir = want; continue; }
+      if (Math.random() < 0.07) { e.dir = pickDir(e); continue; }
+      if (!tryMove(e)) e.dir = pickDir(e);
+    }
+  }
+
+  // bullets
+  for (const b of bullets) {
+    if (b.dead) continue;
+    b.t += dt;
+    while (!b.dead && b.t >= b.step) { b.t -= b.step; advance(b); }
+  }
+  bullets = bullets.filter(b => !b.dead);
+  enemies = enemies.filter(e => e.alive);
+
+  if (transT > 0) { transT -= dt; if (transT <= 0) { level++; startLevel(); } }
+}
+
+/* ---------- Render loop ---------- */
+const camPos = new THREE.Vector3(0, 40, 30), camLook = new THREE.Vector3(), tp = new THREE.Vector3(), tl = new THREE.Vector3();
+function cameraTarget() {
+  const a = camera.aspect;
+  if (state === 'menu') {
+    const r = 30, ang = time * 0.00012;
+    tp.set(Math.sin(ang) * r, 22, Math.cos(ang) * r); tl.set(0, 0, 0);
+    return;
+  }
+  if (camMode === 0) {
+    const k = Math.min(2.5, Math.max(1, 1.1 / a));
+    tp.set(0, 23 * k, 15.5 * k); tl.set(0, 0, 1.2);
+  } else {
+    const px = wx(player.rx), pz = wz(player.rz);
+    tp.set(px * 0.8, 12.5, pz + 10.5); tl.set(px * 0.8, 0, pz - 2);
+  }
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(50, now - last); last = now;
+  if (state === 'play') { time += dt; update(dt); }
+  else if (state === 'menu') time += dt;
+
+  if (player) syncTank(player, dt);
+  for (const e of enemies) syncTank(e, dt);
+  for (const t of liveTanks()) t.moving = Math.max(0, t.moving - dt);
+  for (const b of bullets) {
+    const f = Math.min(1, b.t / b.step);
+    b.mesh.position.set(wx(b.px + (b.x - b.px) * f), 0.5, wz(b.pz + (b.z - b.pz) * f));
+    b.mesh.rotation.y += dt * 0.02;
+  }
+  if (state !== 'pause') {
+    for (const q of parts) {
+      q.life -= dt; q.v.y -= 22 * dt / 1000;
+      q.m.position.addScaledVector(q.v, dt / 1000);
+      if (q.m.position.y < 0.14) { q.m.position.y = 0.14; q.v.y *= -0.35; q.v.x *= 0.7; q.v.z *= 0.7; }
+      q.m.rotation.x += q.spin * dt; q.m.rotation.z += q.spin * dt;
+      q.m.scale.setScalar(Math.max(0.001, q.life / q.max));
+      if (q.life <= 0) { scene.remove(q.m); q.dead = true; }
+    }
+    parts = parts.filter(q => !q.dead);
+    for (const f of flashes) {
+      f.life -= dt; const s = 1 - f.life / f.max;
+      f.m.scale.setScalar(f.size * (1 + s * 1.5)); f.m.material.opacity = 0.85 * (1 - s);
+      if (f.life <= 0) { scene.remove(f.m); f.m.material.dispose(); f.dead = true; }
+    }
+    flashes = flashes.filter(f => !f.dead);
+    shake = Math.max(0, shake - dt * 0.0016);
+  }
+
+  cameraTarget();
+  const k = state === 'menu' ? 1 : Math.min(1, dt * 0.005);
+  camPos.lerp(tp, k); camLook.lerp(tl, k);
+  camera.position.copy(camPos);
+  if (shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake));
+  camera.lookAt(camLook);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+/* ---------- Input ---------- */
+const KEYDIR = { ArrowUp: 0, KeyW: 0, ArrowRight: 1, KeyD: 1, ArrowDown: 2, KeyS: 2, ArrowLeft: 3, KeyA: 3 };
+let held = [], touchDir = null, fireKey = false, fireTouch = false;
+let fireHeld = false;
+const syncFire = () => { fireHeld = fireKey || fireTouch; };
+function activeDir() { return touchDir !== null ? touchDir : (held.length ? held[held.length - 1] : null); }
+
+addEventListener('keydown', e => {
+  if (e.code in KEYDIR) { e.preventDefault(); const d = KEYDIR[e.code]; if (!held.includes(d)) held.push(d); }
+  else if (e.code === 'Space' || e.code === 'KeyJ' || e.code === 'KeyK') {
+    e.preventDefault();
+    if (state === 'menu' || state === 'over') { if (!e.repeat) newGame(); return; }
+    fireKey = true; syncFire();
+  }
+  else if (e.code === 'Enter') { if (state === 'menu' || state === 'over') newGame(); else if (state === 'pause') setPaused(false); }
+  else if (e.code === 'KeyP' || e.code === 'Escape') { setPaused(state === 'play'); }
+  else if (e.code === 'KeyC') toggleCam();
+});
+addEventListener('keyup', e => {
+  if (e.code in KEYDIR) { const d = KEYDIR[e.code]; held = held.filter(x => x !== d); }
+  else if (e.code === 'Space' || e.code === 'KeyJ' || e.code === 'KeyK') { fireKey = false; syncFire(); }
+});
+addEventListener('blur', () => { held = []; fireKey = false; syncFire(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
+
+// touch d-pad (one area, direction from finger angle)
+const dpad = $('dpad'), dspans = dpad.querySelectorAll('span');
+let dpadId = null;
+function dpadSet(e) {
+  const r = dpad.getBoundingClientRect();
+  const x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2);
+  if (Math.hypot(x, y) < 12) return;
+  const d = Math.abs(x) > Math.abs(y) ? (x > 0 ? 1 : 3) : (y > 0 ? 2 : 0);
+  touchDir = d;
+  dspans.forEach((s, i) => s.classList.toggle('on', i === d));
+}
+function dpadEnd(e) { if (e.pointerId !== dpadId) return; dpadId = null; touchDir = null; dspans.forEach(s => s.classList.remove('on')); }
+dpad.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); dpadId = e.pointerId; dpad.setPointerCapture(e.pointerId); dpadSet(e); });
+dpad.addEventListener('pointermove', e => { if (e.pointerId === dpadId) dpadSet(e); });
+dpad.addEventListener('pointerup', dpadEnd);
+dpad.addEventListener('pointercancel', dpadEnd);
+
+const bFire = $('bFire');
+bFire.addEventListener('pointerdown', e => {
+  e.preventDefault(); ensureAudio(); bFire.setPointerCapture(e.pointerId);
+  if (state === 'menu' || state === 'over') { newGame(); return; }
+  fireTouch = true; syncFire(); bFire.classList.add('on');
+});
+const fireUp = () => { fireTouch = false; syncFire(); bFire.classList.remove('on'); };
+bFire.addEventListener('pointerup', fireUp);
+bFire.addEventListener('pointercancel', fireUp);
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+function toggleCam() { camMode = 1 - camMode; $('bCam').textContent = 'Kamera: ' + (camMode ? 'yaqin' : 'umumiy'); }
+$('bCam').addEventListener('click', e => { toggleCam(); e.currentTarget.blur(); });
+$('bSnd').addEventListener('click', e => { muted = !muted; ensureAudio(); e.currentTarget.textContent = muted ? 'Ovoz o\'chiq' : 'Ovoz'; e.currentTarget.blur(); });
+$('bPause').addEventListener('click', e => { setPaused(state === 'play'); e.currentTarget.blur(); });
+$('bStart').addEventListener('click', e => { e.currentTarget.blur(); newGame(); });
+$('bRestart').addEventListener('click', e => { e.currentTarget.blur(); newGame(); });
+$('bResume').addEventListener('click', e => { e.currentTarget.blur(); setPaused(false); });
+
+/* ---------- Boot: menu scene ---------- */
+if (hi > 0) $('menuHi').textContent = 'Rekord: ' + hi;
+buildWalls(); placePlayer(); player.invT = 0; updateHud();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>
